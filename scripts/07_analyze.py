@@ -105,7 +105,10 @@ summary["dataset"] = {
 
 for tag in MODELS:
     w = wide(tag)
-    s = {"overall": summarise(w)}
+    s = {"overall": summarise(w), "overall_excl_mcq": summarise(w[w.eval_format != "mcq"])}
+    s["by_harm_level_excl_mcq"] = {k: summarise(sub) for k, sub in w[w.eval_format != "mcq"].groupby("harm_level")}
+    s["by_format_x_harm"] = {f"{f} / {h}": summarise(sub) for (f, h), sub in w.groupby(["eval_format", "harm_level"])
+                             if len(sub) >= 25}
     for col, key in (("harm_level", "by_harm_level"), ("category", "by_category"),
                      ("eval_format", "by_format"), ("source", "by_source")):
         s[key] = {k: summarise(sub) for k, sub in w.groupby(col) if len(sub) >= 25}
@@ -140,6 +143,30 @@ if jp.exists():
            "kappa_vs_any": float(cohen_kappa_score(jd.judge_refuse_any, jd.refuse.astype(int))),
            "judge_aware_rate": float(jd.eval_aware.fillna(False).mean()),
            "regex_aware_rate": float(jd.eval_aware_regex.mean())}
+    jd = jd.join(pairs[["eval_format", "harm_level"]], on="id")
+    val["by_variant_format"] = {}
+    for (v, f), sub in jd.groupby(["variant", "eval_format"]):
+        k = "user" if v == "natural" else f"bench:{f}"
+        if v == "natural" and "user" in val["by_variant_format"]:
+            continue
+        sub = jd[jd.variant == "natural"] if v == "natural" else sub
+        val["by_variant_format"][k] = {
+            "n": int(len(sub)), "local_refuse": float(sub.refuse.mean()),
+            "judge_full": float(sub.judge_refuse.mean()), "judge_any": float(sub.judge_refuse_any.mean()),
+            "accuracy_vs_any": float((sub.judge_refuse_any == sub.refuse.astype(int)).mean())}
+    # refusal deltas re-estimated with the judge's labels on the sample (paired)
+    jdel = {}
+    for tag, sub in jd.groupby("model"):
+        for lab in ("judge_refuse", "judge_refuse_any"):
+            q = sub.pivot_table(index="id", columns="variant", values=lab, aggfunc="first").dropna()
+            if {"eval", "natural"} <= set(q.columns) and len(q) >= 10:
+                jdel.setdefault(tag, {})[lab] = {"n_pairs": int(len(q)), "eval": boot_mean(q["eval"]),
+                                                  "natural": boot_mean(q["natural"]),
+                                                  "delta": boot_delta(q["eval"], q["natural"])}
+        q = sub.pivot_table(index="id", columns="variant", values="refuse", aggfunc="first").dropna().astype(float)
+        if {"eval", "natural"} <= set(q.columns) and len(q) >= 10:
+            jdel.setdefault(tag, {})["local_refuse"] = {"n_pairs": int(len(q)), "delta": boot_delta(q["eval"], q["natural"])}
+    summary["judge_deltas"] = jdel
     qual = {}
     for tag, sub in jd.groupby("model"):
         q = sub.pivot_table(index="id", columns="variant", values="quality", aggfunc="first")
@@ -158,12 +185,19 @@ if sp.exists():
     sd = pd.DataFrame(read_jsonl(sp))
     sd["cond"] = sd.model.str.replace("steer:", "")
     sd["refuse"] = sd.refuse.astype(float)
+
+    def degenerate(t):
+        w = (t or "").split()
+        return float(len(w) < 3 or len(set(w)) / len(w) < 0.3)
+
+    sd["degenerate"] = sd.response.map(degenerate)
     base = sd[sd.cond == "none+0.0"].set_index(["id", "variant"]).refuse
     st = {}
     for (cond, var), sub in sd.groupby(["cond", "variant"]):
         j = sub.set_index(["id", "variant"]).refuse
         b = base.reindex(j.index)
         st.setdefault(cond, {})[var] = {"refuse": boot_mean(j), "n": int(len(j)),
+                                        "degenerate": float(sub.degenerate.mean()),
                                         "delta_vs_none": boot_delta(j.values, b.values)}
     summary["steering"] = st
 
