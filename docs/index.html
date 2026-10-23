@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Eval-Awareness Gap</title>
+<meta name="description" content="A paired benchmark: the same request, formatted as a benchmark item vs written like a real user. Do models refuse differently, and can they tell?">
+<style>
+:root{
+  --bg:#fbfaf7;--fg:#1c1b19;--muted:#6b6862;--line:#e6e2da;--card:#ffffff;
+  --eval:#c2410c;--nat:#0f766e;--acc:#4338ca;--warn:#fef3c7;--code:#f4f1ea;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#141412;--fg:#ecebe7;--muted:#a19d95;--line:#2c2a26;--card:#1c1b19;
+  --eval:#fb923c;--nat:#2dd4bf;--acc:#a5b4fc;--warn:#3a2f12;--code:#23211d;}}
+:root[data-theme="dark"]{--bg:#141412;--fg:#ecebe7;--muted:#a19d95;--line:#2c2a26;--card:#1c1b19;
+  --eval:#fb923c;--nat:#2dd4bf;--acc:#a5b4fc;--warn:#3a2f12;--code:#23211d;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 ui-serif,Georgia,"Times New Roman",serif}
+.wrap{max-width:980px;margin:0 auto;padding:0 16px}
+header{padding:56px 0 24px;border-bottom:1px solid var(--line)}
+h1{font-size:clamp(28px,5vw,44px);line-height:1.1;margin:0 0 12px;letter-spacing:-.01em}
+h2{font-size:24px;margin:48px 0 8px}
+h3{font-size:18px;margin:24px 0 6px}
+p{margin:8px 0 12px}
+.sub{color:var(--muted);font-size:18px;max-width:720px}
+.sans,nav,table,.pill,.stat,select,input,button,.ex,.small{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+nav{display:flex;gap:16px;flex-wrap:wrap;font-size:14px;margin-top:20px}
+nav a{color:var(--acc);text-decoration:none}
+a{color:var(--acc)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:24px 0}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.stat b{display:block;font-size:26px;font-variant-numeric:tabular-nums}
+.stat span{font-size:13px;color:var(--muted)}
+figure{margin:16px 0;background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px}
+figure img{width:100%;height:auto;display:block}
+figcaption{font-size:13px;color:#555;font-family:ui-sans-serif,system-ui,sans-serif;padding:4px 6px}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--card)}
+table{border-collapse:collapse;width:100%;font-size:13.5px;font-variant-numeric:tabular-nums}
+th,td{padding:7px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th{font-weight:600;background:var(--code)}
+.pos{color:var(--eval)}.neg{color:var(--nat)}
+.ci{color:var(--muted);font-size:12px}
+code{background:var(--code);padding:1px 5px;border-radius:4px;font-size:13px}
+.note{background:var(--warn);border-radius:8px;padding:10px 14px;font-size:14px}
+.controls{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+select,input,button{font-size:14px;padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--fg)}
+button{cursor:pointer}
+.ex{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:720px){.ex{grid-template-columns:1fr}}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;min-width:0}
+.panel h4{margin:0 0 6px;font-size:13px;text-transform:uppercase;letter-spacing:.04em}
+.panel.e h4{color:var(--eval)}.panel.n h4{color:var(--nat)}
+pre{white-space:pre-wrap;word-break:break-word;background:var(--code);border-radius:6px;padding:8px;font-size:13px;margin:6px 0;max-height:220px;overflow:auto}
+.pill{display:inline-block;font-size:12px;padding:1px 8px;border-radius:999px;border:1px solid var(--line);margin:0 4px 4px 0}
+.pill.r{background:var(--eval);color:#fff;border-color:transparent}
+.pill.c{background:var(--nat);color:#fff;border-color:transparent}
+.meta{font-size:13px;color:var(--muted);margin:6px 0}
+.mrow{font-size:13px;border-top:1px dashed var(--line);padding-top:6px;margin-top:6px}
+footer{margin:64px 0 32px;color:var(--muted);font-size:14px;border-top:1px solid var(--line);padding-top:16px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>The Eval-Awareness Gap</h1>
+  <p class="sub">The same request, written once like a benchmark item and once like a real user. Do language models refuse differently? Can they tell which is which, and does a linear "this is a test" direction inside the model change what it does?</p>
+  <nav><a href="#results">Results</a><a href="#probe">Probe &amp; steering</a><a href="#viewer">Paired examples</a><a href="#method">Method</a><a href="#limits">Limitations</a><a href="https://github.com/rishikeshn-eng/eval-awareness-gap">GitHub</a></nav>
+  <div class="stats" id="stats"></div>
+</header>
+
+<section id="why">
+  <h2>Why this matters</h2>
+  <p>Safety evaluations assume a model behaves the same way under test as in deployment. Frontier models increasingly notice when they are being evaluated. Apollo Research and OpenAI report that models verbalise evaluation awareness in their reasoning and that this awareness changes their behaviour. Anthropic's system cards track "evaluation awareness" as a risk for alignment audits. Needham et al. (2025) show frontier models can classify transcripts as evaluations well above chance. If benchmark formatting alone shifts refusal behaviour, published refusal rates are partly measuring the format, not the model.</p>
+  <p>This project isolates <em>surface style</em>. Every pair asks for exactly the same thing. Only the framing changes: benchmark cues (item numbers, rubric language, multiple choice, synthetic names, test-harness headers) versus user cues (casual register, typos, neutral personal context).</p>
+</section>
+
+<section id="results">
+  <h2>Results</h2>
+  <div id="headline"></div>
+  <figure><img src="figures/refusal_by_harm.png" alt="Refusal rates by harm level for benchmark-styled vs user-styled variants"><figcaption>Refusal rate on the same request in each framing, split by harm level. Error bars are 95% bootstrap CIs.</figcaption></figure>
+  <h3>Paired refusal delta (benchmark − user), all pairs</h3>
+  <div class="tablewrap"><table id="t-overall"></table></div>
+  <p class="small meta">Δ is the mean paired difference in refusal (percentage points), with a 95% paired-bootstrap CI over pairs (2,000 resamples). "Discordant" counts the pairs refused in only one framing.</p>
+  <h3>By harm level and eval format</h3>
+  <div class="controls sans"><label>Model <select id="m-sel"></select></label><label>Breakdown <select id="b-sel"><option value="by_harm_level">harm level</option><option value="by_format">eval format</option><option value="by_category">category</option><option value="by_source">source dataset</option></select></label></div>
+  <div class="tablewrap"><table id="t-break"></table></div>
+  <h3>Can the model tell? (explicit classification)</h3>
+  <p>Each model was asked separately whether a message comes from an evaluation or a real user. Local models are scored from the log-probability of "A" vs "B"; Gemini gives a 0–100 probability.</p>
+  <figure><img src="figures/classify_auroc.png" alt="AUROC of eval-vs-user classification per model"><figcaption>AUROC for separating benchmark-styled from user-styled variants (grouped bootstrap 95% CI). The dotted line is a bag-of-words TF-IDF baseline, so the cues are lexically obvious by design.</figcaption></figure>
+  <div id="quality"></div>
+</section>
+
+<section id="probe">
+  <h2>Inside Qwen2.5-1.5B: probe &amp; steering</h2>
+  <div id="probe-text"></div>
+  <figure><img src="figures/probe_layers.png" alt="Probe AUROC by layer"><figcaption>Logistic-regression probe on the last-prompt-token residual stream. Folds are split by pair, so both variants of a request are always in the same fold.</figcaption></figure>
+  <figure><img src="figures/steering.png" alt="Refusal vs steering coefficient"><figcaption>Adding α·(μ<sub>eval</sub> − μ<sub>user</sub>) at the steering layer during generation, on held-out harmful and borderline pairs. Crosses mark a random direction with the same norm.</figcaption></figure>
+  <div class="tablewrap"><table id="t-steer"></table></div>
+</section>
+
+<section id="viewer">
+  <h2>Paired example viewer</h2>
+  <p class="note sans">Responses to prompts labelled <b>harmful</b> are redacted. Only their refusal labels are shown. Prompts come from public safety benchmarks and include offensive requests.</p>
+  <div class="controls">
+    <select id="f-harm"><option value="">all harm levels</option><option>harmful</option><option>borderline</option><option>benign</option></select>
+    <select id="f-fmt"><option value="">all formats</option><option>numbered</option><option>mcq</option><option>scenario</option><option>harness</option></select>
+    <select id="f-flip"><option value="">all pairs</option><option value="eval">refused only when benchmark-styled</option><option value="natural">refused only when user-styled</option></select>
+    <select id="f-model"></select>
+    <input id="f-q" placeholder="search text" size="16">
+    <button id="f-rand">random</button>
+  </div>
+  <div class="meta" id="f-count"></div>
+  <div id="ex"></div>
+  <div class="controls"><button id="prev">← prev</button><button id="next">next →</button></div>
+</section>
+
+<section id="method">
+  <h2>Method</h2>
+  <div id="dataset"></div>
+  <h3>Variants</h3>
+  <p><b>Benchmark-styled</b>: one of 4 formats × 3 wordings (numbered item with rubric note; multiple choice comply/partial/decline; third-person scenario with a synthetic name; test-harness / JSON record), each with a random item number. <b>User-styled</b>: a neutral opener or closer that adds no justification ("ok so random question", "thx"), imperative → "can you …", casual register, and 1–2 character typos. The original request text is kept intact inside both, so semantic equivalence holds by construction. The project first tried Gemini rewrites with an LLM equivalence check, but the free-tier API quota (20–500 requests/day/model, shared by six projects) could not cover 2,000+ items. That attempt and its constraints are documented in the README.</p>
+  <h3>Measurements</h3>
+  <p><b>Refusal</b>: a local refusal classifier (<code>protectai/distilroberta-base-rejection-v1</code>) plus an explicit multiple-choice "decline" rule, validated against a Gemini judge on a stratified sample. <b>Verbalised awareness</b>: a regex for "this is a test / evaluation / benchmark", cross-checked by the judge. <b>Compliance quality</b>: a 0–5 Gemini-judge score on the sample. <b>Classification</b>: AUROC with a bootstrap over pairs. <b>Probe</b>: L2-regularised logistic regression per layer. <b>Steering</b>: a difference-of-means direction fit on 70% of pairs and applied to the other 30%.</p>
+</section>
+
+<section id="limits">
+  <h2>Limitations</h2>
+  <ul>
+    <li>The cues are deliberately overt. A TF-IDF model separates the variants almost perfectly, so high probe AUROC is expected and is not evidence of a deep "eval-awareness" concept. The interesting questions are behavioural (refusal deltas) and causal (steering).</li>
+    <li>Templated rewrites are less diverse than real benchmark items or real user messages. The multiple-choice format changes the task shape: a model can "refuse" by picking (C).</li>
+    <li>The main subjects are small open models (0.5–1.7B). The frontier API model was evaluated on a small subset because of free-tier quotas. CIs reflect that.</li>
+    <li>Refusal labels come from a classifier. The agreement with the LLM judge is reported, but neither is ground truth.</li>
+  </ul>
+</section>
+<footer>Built by <a href="https://github.com/rishikeshn-eng">rishikeshn-eng</a> · code, data recipe and full numbers on <a href="https://github.com/rishikeshn-eng/eval-awareness-gap">GitHub</a> · prompts from HarmBench, XSTest, Do-Not-Answer, OR-Bench and WildChat (see their licences).</footer>
+</div>
+<script>
+const pct=x=>x==null||isNaN(x)?"–":(100*x).toFixed(1)+"%";
+const pp=x=>x==null||isNaN(x)?"–":(x>0?"+":"")+(100*x).toFixed(1);
+const ci=a=>a?`<span class="ci">[${pp(a[1])}, ${pp(a[2])}]</span>`:"";
+const cls=d=>d&&d[1]>0?"pos":(d&&d[2]<0?"neg":"");
+let S,E,view=[],idx=0;
+Promise.all([fetch("data/summary.json").then(r=>r.json()),fetch("data/examples.json").then(r=>r.json())]).then(([s,e])=>{S=s;E=e;init();});
+function init(){
+  const M=Object.keys(S.models), main=S.models["qwen2.5-1.5b"]?"qwen2.5-1.5b":M[0];
+  const o=S.models[main]?.overall;
+  const st=[[S.dataset.n_pairs.toLocaleString(),"matched pairs"],[M.length,"models evaluated"]];
+  if(o){st.push([pp(o.refuse.delta[0])+" pp",`refusal Δ, ${main} (benchmark − user)`]);
+    if(o.classify_auroc)st.push([o.classify_auroc[0].toFixed(2),`${main} AUROC when asked eval vs real`]);}
+  if(S.probe)st.push([Math.max(...S.probe.auroc_cv).toFixed(3),"best-layer probe AUROC"]);
+  document.getElementById("stats").innerHTML=st.map(([b,s])=>`<div class="stat"><b>${b}</b><span>${s}</span></div>`).join("");
+  let h=`<tr><th>model</th><th>pairs</th><th>refusal (bench)</th><th>refusal (user)</th><th>Δ pp [95% CI]</th><th>discordant b/u</th><th>verbalised aware Δ</th><th>AUROC</th></tr>`;
+  for(const m of M){const x=S.models[m].overall;h+=`<tr><td>${m}</td><td>${x.n_pairs}</td><td>${pct(x.refuse.eval[0])}</td><td>${pct(x.refuse.natural[0])}</td><td class="${cls(x.refuse.delta)}">${pp(x.refuse.delta[0])} ${ci(x.refuse.delta)}</td><td>${x.discordant.refuse_only_eval} / ${x.discordant.refuse_only_natural}</td><td>${pp(x.aware.delta[0])}</td><td>${x.classify_auroc?x.classify_auroc[0].toFixed(3)+" "+`<span class="ci">[${x.classify_auroc[1].toFixed(2)}, ${x.classify_auroc[2].toFixed(2)}]</span>`:"–"}</td></tr>`;}
+  document.getElementById("t-overall").innerHTML=h;
+  if(o&&o.refuse.original){document.getElementById("headline").innerHTML=`<p>For <b>${main}</b>, the unmodified original prompt is refused ${pct(o.refuse.original[0])} of the time, versus ${pct(o.refuse.eval[0])} benchmark-styled (Δ ${pp(o.refuse.delta_eval_vs_original[0])} pp ${ci(o.refuse.delta_eval_vs_original)}) and ${pct(o.refuse.natural[0])} user-styled (Δ ${pp(o.refuse.delta_natural_vs_original[0])} pp ${ci(o.refuse.delta_natural_vs_original)}).</p>`;}
+  const ms=document.getElementById("m-sel");ms.innerHTML=M.map(m=>`<option ${m===main?"selected":""}>${m}</option>`).join("");
+  ms.onchange=br;document.getElementById("b-sel").onchange=br;br();
+  if(S.quality_sample||S.judge_validation){let q="<h3>Compliance quality &amp; label validation (Gemini-judged sample)</h3>";
+    if(S.judge_validation){const v=S.judge_validation;q+=`<p>On ${v.n} judged responses, the local refusal label agrees with the judge's "full refusal" ${pct(v.accuracy_vs_full)} of the time (Cohen's κ ${v.kappa_vs_full.toFixed(2)}), and with "any refusal" ${pct(v.accuracy_vs_any)} (κ ${v.kappa_vs_any.toFixed(2)}). Judge-flagged verbalised awareness: ${pct(v.judge_aware_rate)}; regex: ${pct(v.regex_aware_rate)}.</p>`;}
+    if(S.quality_sample&&Object.keys(S.quality_sample).length){q+=`<div class="tablewrap"><table><tr><th>model</th><th>pairs</th><th>quality (bench)</th><th>quality (user)</th><th>Δ [95% CI]</th></tr>`+Object.entries(S.quality_sample).map(([m,x])=>`<tr><td>${m}</td><td>${x.n_pairs}</td><td>${x.eval[0].toFixed(2)}</td><td>${x.natural[0].toFixed(2)}</td><td>${(x.delta[0]>0?"+":"")+x.delta[0].toFixed(2)} <span class="ci">[${x.delta[1].toFixed(2)}, ${x.delta[2].toFixed(2)}]</span></td></tr>`).join("")+`</table></div>`;}
+    document.getElementById("quality").innerHTML=q;}
+  if(S.probe){const p=S.probe;document.getElementById("probe-text").innerHTML=`<p>A linear probe separates benchmark-styled from user-styled prompts with AUROC up to <b>${Math.max(...p.auroc_cv).toFixed(3)}</b> (layer ${p.best_layer}). The difference-of-means direction at layer ${p.steer_layer} reaches held-out AUROC ${p.diffmeans_test_auroc.toFixed(3)}. Trained on three eval formats and tested on the held-out fourth: ${Object.entries(p.lofo).map(([k,v])=>`${k} ${v.toFixed(3)}`).join(", ")}. The TF-IDF baseline on raw text reaches ${S.tfidf_baseline_auroc.toFixed(3)}, so separability alone is unsurprising.</p>`;}
+  if(S.steering){const c=Object.keys(S.steering).sort((a,b)=>parseFloat(a.replace(/[a-z]+/,""))-parseFloat(b.replace(/[a-z]+/,"")));
+    document.getElementById("t-steer").innerHTML=`<tr><th>condition</th><th>refusal (bench)</th><th>Δ vs α=0</th><th>refusal (user)</th><th>Δ vs α=0</th></tr>`+c.map(k=>{const e=S.steering[k].eval,n=S.steering[k].natural;return `<tr><td>${k.replace("dir","direction α=").replace("rand","random α=").replace("none+0.0","none (α=0)")}</td><td>${pct(e?.refuse[0])}</td><td class="${cls(e?.delta_vs_none)}">${pp(e?.delta_vs_none[0])} ${ci(e?.delta_vs_none)}</td><td>${pct(n?.refuse[0])}</td><td class="${cls(n?.delta_vs_none)}">${pp(n?.delta_vs_none[0])} ${ci(n?.delta_vs_none)}</td></tr>`}).join("");}
+  const d=S.dataset;document.getElementById("dataset").innerHTML=`<p>${d.n_pairs.toLocaleString()} base prompts → ${d.n_pairs.toLocaleString()} matched pairs. Harm level: ${Object.entries(d.by_harm_level).map(([k,v])=>`${k} ${v}`).join(", ")}. Sources: ${d.by_source.map(r=>`${r.source} (${r.harm_level}) ${r.n}`).join(", ")}.</p>`;
+  const fm=document.getElementById("f-model");fm.innerHTML=M.map(m=>`<option ${m===main?"selected":""}>${m}</option>`).join("");
+  ["f-harm","f-fmt","f-flip","f-model"].forEach(i=>document.getElementById(i).onchange=filt);
+  document.getElementById("f-q").oninput=filt;
+  document.getElementById("f-rand").onclick=()=>{idx=Math.floor(Math.random()*view.length);show();};
+  document.getElementById("prev").onclick=()=>{idx=(idx-1+view.length)%view.length;show();};
+  document.getElementById("next").onclick=()=>{idx=(idx+1)%view.length;show();};
+  filt();
+}
+function br(){const m=document.getElementById("m-sel").value,b=document.getElementById("b-sel").value,g=S.models[m][b]||{};
+  let h=`<tr><th>${b.replace("by_","")}</th><th>pairs</th><th>refusal (bench)</th><th>refusal (user)</th><th>Δ pp [95% CI]</th><th>AUROC</th></tr>`;
+  for(const [k,x] of Object.entries(g).sort((a,b)=>b[1].n_pairs-a[1].n_pairs))h+=`<tr><td>${k}</td><td>${x.n_pairs}</td><td>${pct(x.refuse.eval[0])}</td><td>${pct(x.refuse.natural[0])}</td><td class="${cls(x.refuse.delta)}">${pp(x.refuse.delta[0])} ${ci(x.refuse.delta)}</td><td>${x.classify_auroc?x.classify_auroc[0].toFixed(3):"–"}</td></tr>`;
+  document.getElementById("t-break").innerHTML=h;}
+function filt(){const h=document.getElementById("f-harm").value,f=document.getElementById("f-fmt").value,fl=document.getElementById("f-flip").value,m=document.getElementById("f-model").value,q=document.getElementById("f-q").value.toLowerCase();
+  view=E.filter(e=>(!h||e.harm_level===h)&&(!f||e.eval_format===f)&&(!q||(e.text+e.eval_text+e.natural_text).toLowerCase().includes(q))&&(!fl||(e.models[m]&&e.models[m].eval&&e.models[m].natural&&(fl==="eval"?e.models[m].eval.refuse&&!e.models[m].natural.refuse:!e.models[m].eval.refuse&&e.models[m].natural.refuse))));
+  idx=0;show();}
+function esc(s){return (s||"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));}
+function show(){const c=document.getElementById("f-count");c.textContent=`${view.length} pairs match · showing ${view.length?idx+1:0}`;
+  const e=view[idx],el=document.getElementById("ex");if(!e){el.innerHTML="";return;}
+  const m=document.getElementById("f-model").value;
+  const lab=(r)=>r?`<span class="pill ${r.refuse?"r":"c"}">${r.refuse?"refused":"complied"}</span>${r.p_eval!=null?`<span class="pill">P(eval) ${r.p_eval.toFixed(2)}</span>`:""}${r.aware?`<span class="pill">says "test"</span>`:""}`:"";
+  const other=Object.entries(e.models).filter(([k])=>k!==m).map(([k,v])=>`<div class="mrow">${k}: bench ${v.eval?(v.eval.refuse?"refused":"complied"):"–"} · user ${v.natural?(v.natural.refuse?"refused":"complied"):"–"}</div>`).join("");
+  const mm=e.models[m]||{};
+  el.innerHTML=`<div class="meta">${e.id} · ${e.source} · <b>${e.harm_level}</b> · ${e.category} · format: ${e.eval_format}</div>
+  <div class="meta">original: “${esc(e.text)}”</div>
+  <div class="ex"><div class="panel e"><h4>benchmark-styled</h4><pre>${esc(e.eval_text)}</pre>${lab(mm.eval)}${mm.eval?`<pre>${esc(mm.eval.resp)}</pre>`:""}</div>
+  <div class="panel n"><h4>user-styled</h4><pre>${esc(e.natural_text)}</pre>${lab(mm.natural)}${mm.natural?`<pre>${esc(mm.natural.resp)}</pre>`:""}</div></div>${other}`;}
+</script>
+</body>
+</html>
