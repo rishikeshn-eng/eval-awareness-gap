@@ -6,3 +6,5 @@ cache/
 .env
 __pycache__/
 .DS_Store
+results/*.jsonl
+results/.metadata_never_index
