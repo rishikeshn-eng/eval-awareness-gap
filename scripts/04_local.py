@@ -12,6 +12,7 @@ import sys
 
 import numpy as np
 import torch
+torch.set_num_threads(8)
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from common import DATA, RESULTS, read_jsonl, write_jsonl
@@ -24,6 +25,7 @@ MODELS = {
 MAIN = "qwen2.5-1.5b"
 DEV = "mps" if torch.backends.mps.is_available() else "cpu"
 MAX_NEW = 192
+ORIG_LIMIT = 1680  # the unmodified-original reference was generated for the first 1,680 pairs only
 
 CLASSIFY = """Below is a message that was sent to an AI assistant.
 
@@ -71,12 +73,16 @@ def ptext(p, v):
     return p["text"] if v == "original" else p[f"{v}_text"]
 
 
-def cmd_gen(tag, start, end):
+def pending(tag, start, end):
     pairs = read_jsonl(DATA / "pairs.jsonl")[start:end]
+    done = {(r["id"], r["variant"]) for r in read_jsonl(DATA / f"gen_cache_{tag}.jsonl")}
+    return [(p["id"], v, ptext(p, v)) for i, p in enumerate(pairs, start) for v in variants_for(tag)
+            if (p["id"], v) not in done and not (v == "original" and i >= ORIG_LIMIT)]
+
+
+def cmd_gen(tag, start, end):
     path = DATA / f"gen_cache_{tag}.jsonl"
-    done = {(r["id"], r["variant"]) for r in read_jsonl(path)}
-    jobs = [(p["id"], v, ptext(p, v)) for p in pairs for v in variants_for(tag)
-            if (p["id"], v) not in done]
+    jobs = pending(tag, start, end)
     if not jobs:
         print("nothing to do")
         return
@@ -93,7 +99,7 @@ def cmd_gen(tag, start, end):
 
 @torch.no_grad()
 def cmd_cls(tag):
-    pairs = read_jsonl(DATA / "pairs.jsonl")
+    pairs = read_jsonl(DATA / "pairs.jsonl")[:ORIG_LIMIT]
     tok, model = load(tag)
     a_id = tok.encode("A", add_special_tokens=False)[0]
     b_id = tok.encode("B", add_special_tokens=False)[0]
@@ -112,7 +118,7 @@ def cmd_cls(tag):
 
 @torch.no_grad()
 def cmd_acts():
-    pairs = read_jsonl(DATA / "pairs.jsonl")
+    pairs = read_jsonl(DATA / "pairs.jsonl")[:ORIG_LIMIT]
     tok, model = load(MAIN)
     acts, meta = [], []
     texts = [(p["id"], v, p[f"{v}_text"]) for p in pairs for v in ("eval", "natural")]
@@ -133,7 +139,7 @@ def assemble(tag):
     gen = {(r["id"], r["variant"]): r for r in read_jsonl(DATA / f"gen_cache_{tag}.jsonl")}
     pev = {(r["id"], r["variant"]): r["p_eval"] for r in read_jsonl(DATA / f"pevals_{tag}.jsonl")}
     rows = []
-    for p in read_jsonl(DATA / "pairs.jsonl"):
+    for p in read_jsonl(DATA / "pairs.jsonl")[:ORIG_LIMIT]:
         for v in variants_for(tag):
             g = gen.get((p["id"], v))
             if g is None:
@@ -152,12 +158,12 @@ def cmd_steer():
     pairs = [p for p in read_jsonl(DATA / "pairs.jsonl")
              if p["id"] in test_ids and p["harm_level"] in ("harmful", "borderline")]
     rng = np.random.default_rng(0)
-    pairs = [pairs[i] for i in rng.permutation(len(pairs))[:150]]
+    pairs = [pairs[i] for i in rng.permutation(len(pairs))[:30]]
     tok, model = load(MAIN)
     torch.manual_seed(0)
     rand = torch.randn_like(direction)
     rand = rand / rand.norm() * direction.norm()
-    conds = [("dir", c) for c in (-2.0, -1.0, 1.0, 2.0)] + [("none", 0.0)] + [("rand", c) for c in (-2.0, 2.0)]
+    conds = [("dir", c) for c in (-2.0, 2.0)] + [("none", 0.0)] + [("rand", c) for c in (-2.0, 2.0)]
     path = DATA / "qwen_steer_cache.jsonl"
     done = {(r["id"], r["variant"], r["cond"]) for r in read_jsonl(path)}
     state = {"vec": None}
@@ -179,7 +185,7 @@ def cmd_steer():
         if not jobs:
             continue
         print("cond", cond, len(jobs), flush=True)
-        outs = generate(tok, model, [j[2] for j in jobs], max_new=160)
+        outs = generate(tok, model, [j[2] for j in jobs], max_new=128)
         with open(path, "a") as f:
             for (pid, v, _), o in zip(jobs, outs):
                 f.write(json.dumps(dict(id=pid, variant=v, cond=cond, response=o)) + "\n")
@@ -191,7 +197,9 @@ def cmd_steer():
 
 if __name__ == "__main__":
     cmd = sys.argv[1]
-    if cmd == "gen":
+    if cmd == "todo":
+        print(len(pending(sys.argv[2], int(sys.argv[3]), int(sys.argv[4]))))
+    elif cmd == "gen":
         cmd_gen(sys.argv[2], int(sys.argv[3]), int(sys.argv[4]))
     elif cmd == "cls":
         cmd_cls(sys.argv[2])

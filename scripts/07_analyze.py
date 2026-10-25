@@ -24,7 +24,7 @@ FIG = DOCS / "figures"
 FIG.mkdir(parents=True, exist_ok=True)
 (DOCS / "data").mkdir(exist_ok=True)
 pairs = pd.DataFrame(read_jsonl(DATA / "pairs.jsonl")).set_index("id")
-ORDER = ["qwen2.5-0.5b", "qwen2.5-1.5b", "smollm2-1.7b", "gemini-3.1-flash-lite"]
+ORDER = ["qwen2.5-0.5b", "qwen2.5-1.5b", "smollm2-1.7b", "gemini-3.1-flash-lite", "gemini-3.5-flash-lite"]
 MODELS = [m for m in ORDER if (RESULTS / f"scored_{m}.jsonl").exists()]
 
 

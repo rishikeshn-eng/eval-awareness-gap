@@ -10,7 +10,7 @@ import sys
 from common import DATA, RESULTS, read_jsonl, write_jsonl
 
 K = int(sys.argv[1]) if len(sys.argv) > 1 else 30
-TAGS = ["qwen2.5-1.5b", "qwen2.5-0.5b", "smollm2-1.7b", "gemini-3.1-flash-lite"]
+TAGS = ["qwen2.5-1.5b", "qwen2.5-0.5b", "smollm2-1.7b", "gemini-3.1-flash-lite", "gemini-3.5-flash-lite"]
 pairs = {p["id"]: p for p in read_jsonl(DATA / "pairs.jsonl")}
 rng = random.Random(0)
 out = []

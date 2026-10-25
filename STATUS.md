@@ -1,19 +1,18 @@
-# STATUS: eval-awareness-gap (in progress; stopped at usage limit 2026-10-24 ~04:45 IST)
+# STATUS: eval-awareness-gap
 
 - Repo: https://github.com/rishikeshn-eng/eval-awareness-gap
-- Pages: https://rishikeshn-eng.github.io/eval-awareness-gap/ (enabled; shows data only once docs/data/*.json exist)
+- Pages: https://rishikeshn-eng.github.io/eval-awareness-gap/
+
+## Headline result
+Same request, different framing. On 1,680 matched pairs, Qwen2.5-1.5B-Instruct refuses 54.1% of benchmark-styled vs 68.0% of user-styled requests: Δ = −13.9 pp, 95% paired-bootstrap CI [−16.3, −11.3]. The original prompt is refused 73.9%. The direction depends on format: rubric/numbered +5.2 pp; scenario −23.8, harness −21.2, MCQ −16.0. The effect is concentrated in borderline (−21.5) and harmful (−14.7) prompts. Gemini 3.1/3.5 Flash-Lite (60 pairs each) separate the styles almost perfectly when asked (AUROC 0.999), but their refusal barely moves (+6.7 [0, 15], +1.7 [−8.3, 11.7]). Verbalised "this is a test" stays at ≤1.7% everywhere.
 
 ## Done
-- 2,219-prompt pool (HarmBench 200, Do-Not-Answer 699, XSTest 450, OR-Bench-Hard 450, WildChat 420). SORRY-Bench is gated, so it was skipped.
-- Matched benchmark-styled / user-styled pairs (programmatic; the Gemini rewrite path exists but free-tier quota can't cover it).
-- Full pipeline code: local generation, logprob classification, activations, probe, steering, local refusal classifier, Gemini judge sample, analysis, site.
-- `run_local.sh` is running in the background (log: data/run_local.log). Qwen2.5-1.5B generation was ~40% done at 04:41.
-- Gemini 3.1-flash-lite subject run (60 pairs) is sleeping until the quota resets at 12:30 IST (log: data/api_flashlite.log).
+- 2,219-pair benchmark (HarmBench, Do-Not-Answer, XSTest, OR-Bench-Hard, WildChat). SORRY-Bench is gated, so it was skipped.
+- Behavioural results with bootstrap CIs and breakdowns by harm level, category, format and source.
+- Site with a paired-example viewer (responses to harmful prompts redacted). README with results, limitations and reproduction steps.
 
-## Interim signal (keyword heuristic, first 300 pairs, Qwen2.5-1.5B; NOT final)
-Refusal is lower for benchmark-styled prompts than for user-styled or original prompts (borderline 32% vs 64%). The gap is driven by the MCQ and harness formats, partly because the model complies after picking an option and partly because keywords miss refusals. Judge validation is needed.
-
-## Left to do
-1. Let run_local.sh finish (Qwen-1.5B, acts, probe, steer, Qwen-0.5B, SmolLM2, scoring, analysis). If time-constrained, run SmolLM2 on half the pairs.
-2. After the Gemini job finishes: `05_refusal_local.py gemini-3.1-flash-lite` (under gpulock), `08_judge_sample.py 30`, `05_judge.py judgesample` (gemini-3-flash-preview, about 20 req/day).
-3. `07_analyze.py`, `09_export_site.py`, fill the `<!-- RESULTS -->` and `<!-- DETAILS -->` sections and Limitations in README, then commit and push docs/ + README.
+## Not done / partial
+- Qwen2.5-0.5B and SmolLM2-1.7B arms were not run, and Qwen-1.5B covers 1,680 of 2,219 pairs. The shared laptop's GPU queue plus heavy load made generation ~20× slower than planned.
+- Probe and steering: code done. The activation and logprob-classification job was still running at publish time; results get added to the README tables only if it finishes.
+- LLM-judge validation of the refusal classifier (gemini-3-flash-preview, 180 responses): running at publish time.
+- Gemini-rewritten variants: piloted only (free-tier quota).

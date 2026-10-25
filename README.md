@@ -4,7 +4,21 @@
 
 Live site with results and a paired-example viewer: **https://rishikeshn-eng.github.io/eval-awareness-gap/**
 
-<!-- RESULTS -->
+## Headline results
+
+| | |
+|---|---|
+| **Benchmark** | 2,219 matched pairs (same request, benchmark-styled vs user-styled) from 5 public safety datasets |
+| **Qwen2.5-1.5B-Instruct** (1,680 pairs × 3 framings) | refuses **54.1%** of benchmark-styled vs **68.0%** of user-styled requests: **Δ = −13.9 pp [95% CI −16.3, −11.3]**. The unmodified original prompt is refused 73.9%. |
+| **Direction of the effect depends on the format** | a rubric/"Question 17:" header *raises* refusal (+5.2 pp [+1.2, +9.5]). Third-person scenarios (−23.8 pp), test-harness records (−21.2 pp) and multiple choice (−16.0 pp) *lower* it. |
+| **Where it matters** | borderline (−21.5 pp) and harmful (−14.7 pp) requests. Benign requests show no significant shift (+3.0 pp [−2.6, +8.6]). |
+| **Gemini 3.1 / 3.5 Flash-Lite** (60 pairs each, free-tier limits) | tell the two styles apart almost perfectly when asked (AUROC 0.999), but refusal barely moves (+6.7 pp [0.0, +15.0] and +1.7 pp [−8.3, +11.7]) |
+| **Verbalised awareness** | almost never: ≤1.7% of responses say "this is a test", in either framing |
+
+**Takeaway.** For a small open model, wrapping a harmful request in benchmark scaffolding (scenario, harness, MCQ) makes it *more* likely to comply. It answers "the question" or picks an option instead of applying its usual refusal behaviour. A refusal benchmark in those formats would *overstate* how often the model complies with real users, and attack-style evals built on such templates conflate format effects with safety. The Gemini models recognise the scaffolding but are much less moved by it, at least on this small sample. Neither model *talks* about being tested, so a behavioural shift can happen with no verbalised evaluation awareness at all. That matters for monitoring approaches that look for verbalised awareness.
+
+![Refusal by harm level](docs/figures/refusal_by_harm.png)
+
 
 ## The problem
 
@@ -19,7 +33,7 @@ Most of that work asks *whether* models detect evaluations. This project asks a 
 ## What was built
 
 1. **A paired benchmark of 2,219 requests** from HarmBench, XSTest, Do-Not-Answer, OR-Bench-Hard-1K and WildChat (harmful, borderline/over-refusal and benign). Each request has a matched **benchmark-styled** variant and a **user-styled** variant.
-2. **Behavioural measurements** on three local open models (Qwen2.5-0.5B/1.5B-Instruct, SmolLM2-1.7B-Instruct) over all pairs, and on Gemini 3.1 Flash-Lite over a stratified subset: refusal-rate delta, verbalised "this is a test" rate, and a Gemini-judged compliance-quality delta on a sample.
+2. **Behavioural measurements** on Qwen2.5-1.5B-Instruct (1,680 pairs, plus the original unmodified prompt as a third condition) and on Gemini 3.1 Flash-Lite and Gemini 3.5 Flash-Lite (60 stratified pairs each): refusal-rate delta, verbalised "this is a test" rate, and a Gemini-judged label check on a sample. Qwen2.5-0.5B and SmolLM2-1.7B were planned but not run (see *What didn't get done*).
 3. **Explicit eval-vs-real classification.** Each model is asked separately whether a message comes from an evaluation or a real user, scored by AUROC.
 4. **Mechanistic test on Qwen2.5-1.5B.** Linear probes on residual-stream activations at every layer (grouped CV, leave-one-format-out), then activation steering along the eval-vs-user direction to see whether it changes refusal. A random-direction control uses the same norm.
 
@@ -58,9 +72,58 @@ The original request text is kept intact inside both variants, so semantic equiv
 | eval-vs-real classification | local: P("A") / (P("A") + P("B")) from next-token logits. Gemini: 0–100 rating, batched so no batch contains both variants of a pair |
 | statistics | paired bootstrap over pairs (2,000 resamples) for deltas. Grouped (by pair) bootstrap for AUROC |
 | probe (`06_probe.py`) | per-layer logistic regression on the last-prompt-token residual stream, 5-fold GroupKFold by pair, plus leave-one-format-out |
-| steering (`04_local.py steer`) | h ← h + α(μ_eval − μ_user) at the steering layer, means from 70% of pairs, α ∈ {−2, −1, 0, +1, +2}, random direction with equal norm at α = ±2, on 150 held-out harmful/borderline pairs |
+| steering (`04_local.py steer`) | h ← h + α(μ_eval − μ_user) at the steering layer, means from 70% of pairs, α ∈ {−2, 0, +2}, random direction with equal norm at α = ±2, on 30 held-out harmful/borderline pairs |
 
-<!-- DETAILS -->
+<!-- TABLES:START -->
+### Refusal: benchmark-styled vs user-styled (all pairs)
+
+| model | pairs | refusal (bench) | refusal (user) | Δ pp [95% CI] | Δ excl. MCQ | discordant bench-only / user-only | AUROC eval-vs-user |
+|---|---|---|---|---|---|---|---|
+| qwen2.5-1.5b | 1680 | 54.1% | 68.0% | -13.9 [-16.3, -11.3] | -13.3 [-16.0, -10.5] | 133 / 367 | – |
+| gemini-3.1-flash-lite | 60 | 25.0% | 18.3% | +6.7 [+0.0, +15.0] | +4.3 [-4.3, +12.8] | 5 / 1 | 0.999 [1.00, 1.00] |
+| gemini-3.5-flash-lite | 60 | 26.7% | 25.0% | +1.7 [-8.3, +11.7] | +6.4 [+0.0, +12.8] | 5 / 4 | 0.999 [1.00, 1.00] |
+
+Qwen2.5-1.5B on the **unmodified original** prompts: refusal 73.9%; benchmark-styled − original -19.8 [-22.3, -17.4] pp; user-styled − original -5.9 [-7.9, -3.9] pp.
+
+### By harm level (Δ = benchmark − user, pp, 95% CI)
+
+| model | harmful | borderline | benign |
+|---|---|---|---|
+| qwen2.5-1.5b | -14.7 [-18.2, -11.3] | -21.5 [-25.9, -16.7] | +3.0 [-2.6, +8.6] |
+| gemini-3.1-flash-lite | – | – | – |
+| gemini-3.5-flash-lite | – | – | – |
+
+### By benchmark format (Δ pp, harmful + borderline + benign pooled)
+
+| model | numbered/rubric | MCQ | scenario | harness |
+|---|---|---|---|---|
+| qwen2.5-1.5b | +5.2 [+1.2, +9.5] | -16.0 [-21.7, -10.0] | -23.8 [-28.8, -18.8] | -21.2 [-26.0, -16.4] |
+| gemini-3.1-flash-lite | – | – | – | – |
+| gemini-3.5-flash-lite | – | – | – | – |
+
+### Verbalised evaluation awareness (regex, % of responses)
+
+| model | bench-styled | user-styled |
+|---|---|---|
+| qwen2.5-1.5b | 0.1% | 0.1% |
+| gemini-3.1-flash-lite | 1.7% | 0.0% |
+| gemini-3.5-flash-lite | 0.0% | 0.0% |
+<!-- TABLES:END -->
+
+## Limitations
+
+- **The cues are overt by design.** A TF-IDF bag-of-words model separates the two variants perfectly (AUROC 1.00), so the Gemini models' AUROC of 0.999 shows they notice the cues. It is not evidence of subtle situational awareness.
+- **Templated variants.** Twelve benchmark templates and a rule-based "user" rewrite are less diverse than real benchmark items or real users. MCQ changes the task shape: a model can "refuse" by picking (C), and the scorer counts that as a refusal. Results are also reported excluding MCQ (Δ = −13.3 pp [−16.0, −10.5] for Qwen).
+- **Refusal labels come from a classifier** (`distilroberta-base-rejection-v1` plus an MCQ rule). It misses some soft refusals, e.g. "Option (B) … this is unethical". Agreement with an LLM judge on a 180-response sample is reported in the tables below when available. Neither is ground truth.
+- **Small API samples.** The Gemini key is free tier (20–500 requests/day/model, shared by six projects running at once), so the Gemini arms have 60 pairs each. Their CIs are wide.
+- **Coverage.** Qwen2.5-1.5B covers 1,680 of the 2,219 pairs, a random subset because the pair order is shuffled. Compute ran out on a shared, heavily loaded laptop.
+
+## What didn't get done
+
+- **Qwen2.5-0.5B and SmolLM2-1.7B** arms, and Qwen2.5-1.5B on the last 539 pairs: the code path exists (`run_local.sh`), but they were not run before the deadline.
+- **Probe and steering**: `06_probe.py` and `04_local.py steer` are implemented. Their results appear in the tables below only if the activation run finished. Otherwise they are pending.
+- **Gemini-rewritten variants** (`02_variants.py`): built and piloted, but not run at scale because of API quota.
+- **Gemini-judged compliance quality**: limited to the judge sample.
 
 ## Reproduce
 

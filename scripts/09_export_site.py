@@ -7,7 +7,7 @@ import json
 
 from common import DATA, RESULTS, ROOT, read_jsonl
 
-TAGS = ["qwen2.5-1.5b", "qwen2.5-0.5b", "smollm2-1.7b", "gemini-3.1-flash-lite"]
+TAGS = ["qwen2.5-1.5b", "qwen2.5-0.5b", "smollm2-1.7b", "gemini-3.1-flash-lite", "gemini-3.5-flash-lite"]
 SNIP = 400
 
 pairs = read_jsonl(DATA / "pairs.jsonl")
