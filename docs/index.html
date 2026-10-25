@@ -94,9 +94,9 @@ footer{margin:64px 0 32px;color:var(--muted);font-size:14px;border-top:1px solid
 
 <section id="probe">
   <h2>Inside Qwen2.5-1.5B: probe &amp; steering</h2>
-  <div id="probe-text"></div>
-  <figure><img src="figures/probe_layers.png" alt="Probe AUROC by layer"><figcaption>Logistic-regression probe on the last-prompt-token residual stream. Folds are split by pair, so both variants of a request are always in the same fold.</figcaption></figure>
-  <figure><img src="figures/steering.png" alt="Refusal vs steering coefficient"><figcaption>Adding α·(μ<sub>eval</sub> − μ<sub>user</sub>) at the steering layer during generation, on held-out harmful and borderline pairs. Crosses mark a random direction with the same norm.</figcaption></figure>
+  <div id="probe-text"><p class="note sans">Pending: the activation/probe/steering run had not finished on the shared laptop by the publish deadline. The code is in the repo (<code>06_probe.py</code>, <code>04_local.py steer</code>).</p></div>
+  <figure><img onerror="this.closest('figure').style.display='none'" src="figures/probe_layers.png" alt="Probe AUROC by layer"><figcaption>Logistic-regression probe on the last-prompt-token residual stream. Folds are split by pair, so both variants of a request are always in the same fold.</figcaption></figure>
+  <figure><img onerror="this.closest('figure').style.display='none'" src="figures/steering.png" alt="Refusal vs steering coefficient"><figcaption>Adding α·(μ<sub>eval</sub> − μ<sub>user</sub>) at the steering layer during generation, on held-out harmful and borderline pairs. Crosses mark a random direction with the same norm.</figcaption></figure>
   <div class="tablewrap"><table id="t-steer"></table></div>
 </section>
 
