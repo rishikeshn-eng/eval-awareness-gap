@@ -5,79 +5,44 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Eval-Awareness Gap</title>
 <meta name="description" content="A paired benchmark: the same request, formatted as a benchmark item vs written like a real user. Do models refuse differently, and can they tell?">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="lab.css">
 <style>
-:root{
-  --bg:#fbfaf7;--fg:#1c1b19;--muted:#6b6862;--line:#e6e2da;--card:#ffffff;
-  --eval:#c2410c;--nat:#0f766e;--acc:#4338ca;--warn:#fef3c7;--code:#f4f1ea;
-}
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --bg:#141412;--fg:#ecebe7;--muted:#a19d95;--line:#2c2a26;--card:#1c1b19;
-  --eval:#fb923c;--nat:#2dd4bf;--acc:#a5b4fc;--warn:#3a2f12;--code:#23211d;}}
-:root[data-theme="dark"]{--bg:#141412;--fg:#ecebe7;--muted:#a19d95;--line:#2c2a26;--card:#1c1b19;
-  --eval:#fb923c;--nat:#2dd4bf;--acc:#a5b4fc;--warn:#3a2f12;--code:#23211d;}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 ui-serif,Georgia,"Times New Roman",serif}
-.wrap{max-width:980px;margin:0 auto;padding:0 16px}
-header{padding:56px 0 24px;border-bottom:1px solid var(--line)}
-h1{font-size:clamp(28px,5vw,44px);line-height:1.1;margin:0 0 12px;letter-spacing:-.01em}
-h2{font-size:24px;margin:48px 0 8px}
-h3{font-size:18px;margin:24px 0 6px}
-p{margin:8px 0 12px}
-.sub{color:var(--muted);font-size:18px;max-width:720px}
-.sans,nav,table,.pill,.stat,select,input,button,.ex,.small{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
-nav{display:flex;gap:16px;flex-wrap:wrap;font-size:14px;margin-top:20px}
-nav a{color:var(--acc);text-decoration:none}
-a{color:var(--acc)}
-.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:24px 0}
-.stat{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
-.stat b{display:block;font-size:26px;font-variant-numeric:tabular-nums}
-.stat span{font-size:13px;color:var(--muted)}
-figure{margin:16px 0;background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px}
-figure img{width:100%;height:auto;display:block}
-figcaption{font-size:13px;color:#555;font-family:ui-sans-serif,system-ui,sans-serif;padding:4px 6px}
-.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--card)}
-table{border-collapse:collapse;width:100%;font-size:13.5px;font-variant-numeric:tabular-nums}
-th,td{padding:7px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
-th:first-child,td:first-child{text-align:left}
-th{font-weight:600;background:var(--code)}
-.pos{color:var(--eval)}.neg{color:var(--nat)}
-.ci{color:var(--muted);font-size:12px}
-code{background:var(--code);padding:1px 5px;border-radius:4px;font-size:13px}
-.note{background:var(--warn);border-radius:8px;padding:10px 14px;font-size:14px}
-.controls{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
-select,input,button{font-size:14px;padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--fg)}
-button{cursor:pointer}
+:root{--fg:var(--ink);--card:var(--surface);--code:var(--surface-2);--acc:var(--link);--a2:var(--c1);--ok:var(--good);--warn:var(--accent);--eval:var(--c2);--nat:var(--c3);}
+.wrap>header{padding:8px 0 8px}
+header nav{display:none}
+section h2{margin-top:72px}
+.pos{color:var(--eval);font-weight:600}.neg{color:var(--nat);font-weight:600}
+.note{background:var(--warn-soft);border-left:3px solid var(--accent);border-radius:10px;padding:14px 16px;color:var(--ink-2)}
 .ex{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 @media (max-width:720px){.ex{grid-template-columns:1fr}}
-.panel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;min-width:0}
-.panel h4{margin:0 0 6px;font-size:13px;text-transform:uppercase;letter-spacing:.04em}
+.panel h4{font:500 12px/1.3 var(--mono);letter-spacing:.1em;text-transform:uppercase;margin:0 0 8px}
 .panel.e h4{color:var(--eval)}.panel.n h4{color:var(--nat)}
-pre{white-space:pre-wrap;word-break:break-word;background:var(--code);border-radius:6px;padding:8px;font-size:13px;margin:6px 0;max-height:220px;overflow:auto}
-.pill{display:inline-block;font-size:12px;padding:1px 8px;border-radius:999px;border:1px solid var(--line);margin:0 4px 4px 0}
-.pill.r{background:var(--eval);color:#fff;border-color:transparent}
-.pill.c{background:var(--nat);color:#fff;border-color:transparent}
-.meta{font-size:13px;color:var(--muted);margin:6px 0}
-.mrow{font-size:13px;border-top:1px dashed var(--line);padding-top:6px;margin-top:6px}
-footer{margin:64px 0 32px;color:var(--muted);font-size:14px;border-top:1px solid var(--line);padding-top:16px}
+.panel{border-top:3px solid var(--line-2)}.panel.e{border-top-color:var(--eval)}.panel.n{border-top-color:var(--nat)}
+.pill.r{background:var(--bad-soft);color:var(--bad)}.pill.c{background:var(--good-soft);color:var(--good)}
+.mrow{font-size:14px;color:var(--muted);border-top:1px dashed var(--line);padding-top:8px;margin-top:8px}
+footer{max-width:none;padding-left:0;padding-right:0;margin-top:72px}
 </style>
 </head>
 <body>
+<header class="labbar"><div class="labbar-in"><a class="home" href="https://claude.ai/artifact/HFzmFTYLBw6n7KTCFKAdSQ"><i></i>Rishikesh · AI safety</a><nav aria-label="Sections"><a href="#results">Results</a><a href="#probe">Probe</a><a href="#viewer">Examples</a><a href="#method">Method</a><a href="#limits">Limitations</a><a class="gh" href="https://github.com/rishikeshn-eng/eval-awareness-gap">GitHub ↗</a></nav></div></header>
 <div class="wrap">
 <header>
-  <h1>The Eval-Awareness Gap</h1>
+  <div class="eyebrow">Evaluation validity</div>
+<h1>The Eval-Awareness Gap</h1>
   <p class="sub">The same request, written once like a benchmark item and once like a real user. Do language models refuse differently? Can they tell which is which, and does a linear "this is a test" direction inside the model change what it does?</p>
   <nav><a href="#results">Results</a><a href="#probe">Probe &amp; steering</a><a href="#viewer">Paired examples</a><a href="#method">Method</a><a href="#limits">Limitations</a><a href="https://github.com/rishikeshn-eng/eval-awareness-gap">GitHub</a></nav>
   <div class="stats" id="stats"></div>
 </header>
 
 <section id="why">
-  <h2>Why this matters</h2>
+  <h2 id="why-this-matters">Why this matters</h2>
   <p>Safety evaluations assume a model behaves the same way under test as in deployment. Frontier models increasingly notice when they are being evaluated. Apollo Research and OpenAI report that models verbalise evaluation awareness in their reasoning and that this awareness changes their behaviour. Anthropic's system cards track "evaluation awareness" as a risk for alignment audits. Needham et al. (2025) show frontier models can classify transcripts as evaluations well above chance. If benchmark formatting alone shifts refusal behaviour, published refusal rates are partly measuring the format, not the model.</p>
   <p>This project isolates <em>surface style</em>. Every pair asks for exactly the same thing. Only the framing changes: benchmark cues (item numbers, rubric language, multiple choice, synthetic names, test-harness headers) versus user cues (casual register, typos, neutral personal context).</p>
 </section>
 
 <section id="results">
-  <h2>Results</h2>
+  <h2 id="results">Results</h2>
   <div id="headline"></div>
   <figure><img src="figures/refusal_by_harm.png" alt="Refusal rates by harm level for benchmark-styled vs user-styled variants"><figcaption>Refusal rate on the same request in each framing, split by harm level. Error bars are 95% bootstrap CIs.</figcaption></figure>
   <h3>Paired refusal delta (benchmark − user), all pairs</h3>
@@ -93,7 +58,7 @@ footer{margin:64px 0 32px;color:var(--muted);font-size:14px;border-top:1px solid
 </section>
 
 <section id="probe">
-  <h2>Inside Qwen2.5-1.5B: probe &amp; steering</h2>
+  <h2 id="inside-qwen2-5-1-5b-probe-amp-steering">Inside Qwen2.5-1.5B: probe &amp; steering</h2>
   <div id="probe-text"><p class="note sans">Pending: the activation/probe/steering run had not finished on the shared laptop by the publish deadline. The code is in the repo (<code>06_probe.py</code>, <code>04_local.py steer</code>).</p></div>
   <figure><img onerror="this.closest('figure').style.display='none'" src="figures/probe_layers.png" alt="Probe AUROC by layer"><figcaption>Logistic-regression probe on the last-prompt-token residual stream. Folds are split by pair, so both variants of a request are always in the same fold.</figcaption></figure>
   <figure><img onerror="this.closest('figure').style.display='none'" src="figures/steering.png" alt="Refusal vs steering coefficient"><figcaption>Adding α·(μ<sub>eval</sub> − μ<sub>user</sub>) at the steering layer during generation, on held-out harmful and borderline pairs. Crosses mark a random direction with the same norm.</figcaption></figure>
@@ -101,7 +66,7 @@ footer{margin:64px 0 32px;color:var(--muted);font-size:14px;border-top:1px solid
 </section>
 
 <section id="viewer">
-  <h2>Paired example viewer</h2>
+  <h2 id="paired-example-viewer">Paired example viewer</h2>
   <p class="note sans">Responses to prompts labelled <b>harmful</b> are redacted. Only their refusal labels are shown. Prompts come from public safety benchmarks and include offensive requests.</p>
   <div class="controls">
     <select id="f-harm"><option value="">all harm levels</option><option>harmful</option><option>borderline</option><option>benign</option></select>
@@ -117,7 +82,7 @@ footer{margin:64px 0 32px;color:var(--muted);font-size:14px;border-top:1px solid
 </section>
 
 <section id="method">
-  <h2>Method</h2>
+  <h2 id="method">Method</h2>
   <div id="dataset"></div>
   <h3>Variants</h3>
   <p><b>Benchmark-styled</b>: one of 4 formats × 3 wordings (numbered item with rubric note; multiple choice comply/partial/decline; third-person scenario with a synthetic name; test-harness / JSON record), each with a random item number. <b>User-styled</b>: a neutral opener or closer that adds no justification ("ok so random question", "thx"), imperative → "can you …", casual register, and 1–2 character typos. The original request text is kept intact inside both, so semantic equivalence holds by construction. The project first tried Gemini rewrites with an LLM equivalence check, but the free-tier API quota (20–500 requests/day/model, shared by six projects) could not cover 2,000+ items. That attempt and its constraints are documented in the README.</p>
@@ -126,7 +91,7 @@ footer{margin:64px 0 32px;color:var(--muted);font-size:14px;border-top:1px solid
 </section>
 
 <section id="limits">
-  <h2>Limitations</h2>
+  <h2 id="limitations">Limitations</h2>
   <ul>
     <li>The cues are deliberately overt. A TF-IDF model separates the variants almost perfectly, so high probe AUROC is expected and is not evidence of a deep "eval-awareness" concept. The interesting questions are behavioural (refusal deltas) and causal (steering).</li>
     <li>Templated rewrites are less diverse than real benchmark items or real user messages. The multiple-choice format changes the task shape: a model can "refuse" by picking (C).</li>
