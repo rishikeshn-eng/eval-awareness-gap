@@ -123,6 +123,8 @@ def gemini(model, prompt, cache, system=None, temperature=0.0, max_tokens=1024,
             return out
         except Exception as e:  # noqa: BLE001
             msg = str(e)
+            if "PerDay" in msg and os.environ.get("EAG_NO_WAIT"):
+                return {"text": "", "finish": "ERROR", "blocked": None, "error": msg[:300]}
             if "PerDay" in msg:
                 print(f"[{model}] daily quota exhausted; sleeping 20 min", flush=True)
                 time.sleep(1200)

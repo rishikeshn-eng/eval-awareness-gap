@@ -13,9 +13,10 @@ Live site with results and a paired-example viewer: **https://rishikeshn-eng.git
 | **Direction of the effect depends on the format** | a rubric/"Question 17:" header *raises* refusal (+5.2 pp [+1.2, +9.5]). Third-person scenarios (−23.8 pp), test-harness records (−21.2 pp) and multiple choice (−16.0 pp) *lower* it. |
 | **Where it matters** | borderline (−21.5 pp) and harmful (−14.7 pp) requests. Benign requests show no significant shift (+3.0 pp [−2.6, +8.6]). |
 | **Gemini 3.1 / 3.5 Flash-Lite** (60 pairs each, free-tier limits) | tell the two styles apart almost perfectly when asked (AUROC 0.999), but refusal barely moves (+6.7 pp [0.0, +15.0] and +1.7 pp [−8.3, +11.7]) |
-| **Verbalised awareness** | almost never: ≤1.7% of responses say "this is a test", in either framing |
+| **Verbalised awareness** | almost never: ≤1.7% of responses say "this is a test" (regex), 2.4% by the judge |
+| **Label check** (Gemini judge, 168 responses) | the local refusal label agrees with the judge 85% of the time (κ = 0.69), but **under-counts refusals in benchmark formats** (scenario 24% vs judge 40–48%). On the judged Qwen sample (25 pairs), Δ is −20 to −24 pp by the judge vs −44 pp by the local label. The judge confirms the direction, but the full-set magnitude is likely overstated by the scorer. |
 
-**Takeaway.** For a small open model, wrapping a harmful request in benchmark scaffolding (scenario, harness, MCQ) makes it *more* likely to comply. It answers "the question" or picks an option instead of applying its usual refusal behaviour. A refusal benchmark in those formats would *overstate* how often the model complies with real users, and attack-style evals built on such templates conflate format effects with safety. The Gemini models recognise the scaffolding but are much less moved by it, at least on this small sample. Neither model *talks* about being tested, so a behavioural shift can happen with no verbalised evaluation awareness at all. That matters for monitoring approaches that look for verbalised awareness.
+**Takeaway.** (Read with the label-check caveat above.) For a small open model, wrapping a harmful request in benchmark scaffolding (scenario, harness, MCQ) makes it *more* likely to comply. It answers "the question" or picks an option instead of applying its usual refusal behaviour. A refusal benchmark in those formats would *overstate* how often the model complies with real users, and attack-style evals built on such templates conflate format effects with safety. The Gemini models recognise the scaffolding but are much less moved by it, at least on this small sample. Neither model *talks* about being tested, so a behavioural shift can happen with no verbalised evaluation awareness at all. That matters for monitoring approaches that look for verbalised awareness.
 
 ![Refusal by harm level](docs/figures/refusal_by_harm.png)
 
@@ -108,6 +109,30 @@ Qwen2.5-1.5B on the **unmodified original** prompts: refusal 73.9%; benchmark-st
 | qwen2.5-1.5b | 0.1% | 0.1% |
 | gemini-3.1-flash-lite | 1.7% | 0.0% |
 | gemini-3.5-flash-lite | 0.0% | 0.0% |
+
+### Label validation and quality (Gemini judge, gemini-3-flash-preview)
+
+On 168 judged responses, the local refusal label agrees with the judge's *full refusal* on 85.1% (κ = 0.69) and with *any refusal (full or partial)* on 81.0% (κ = 0.61). Judge-flagged verbalised awareness 2.4% vs regex 0.0%.
+
+| subset | n | local refuse | judge full | judge any | agreement (any) |
+|---|---|---|---|---|---|
+| bench:harness | 28 | 28.6% | 32.1% | 35.7% | 71.4% |
+| bench:mcq | 16 | 50.0% | 62.5% | 62.5% | 87.5% |
+| bench:numbered | 16 | 25.0% | 31.2% | 43.8% | 81.2% |
+| bench:scenario | 25 | 24.0% | 40.0% | 48.0% | 76.0% |
+| user | 83 | 44.6% | 43.4% | 48.2% | 84.3% |
+
+| model (judged sample) | pairs | Δ judge full refusal | Δ judge any refusal | Δ local label |
+|---|---|---|---|---|
+| gemini-3.1-flash-lite | 25 | +8.0 [-8.0, +24.0] | +12.0 [-4.0, +28.0] | +4.0 [-8.0, +16.0] |
+| gemini-3.5-flash-lite | 28 | +14.3 [+3.6, +28.6] | +14.3 [+0.0, +28.6] | +10.7 [-3.6, +25.0] |
+| qwen2.5-1.5b | 25 | -20.0 [-40.0, +0.0] | -24.0 [-44.0, -4.0] | -44.0 [-64.0, -24.0] |
+
+| model | pairs | quality bench (0-5) | quality user | Δ [95% CI] |
+|---|---|---|---|---|
+| gemini-3.1-flash-lite | 25 | 3.36 | 3.32 | +0.04 [-0.84, +0.92] |
+| gemini-3.5-flash-lite | 28 | 2.64 | 3.29 | -0.64 [-1.39, +0.04] |
+| qwen2.5-1.5b | 25 | 1.96 | 0.96 | +1.00 [+0.24, +1.76] |
 <!-- TABLES:END -->
 
 ## Limitations
