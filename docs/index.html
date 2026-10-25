@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Eval-Awareness Gap</title>
 <meta name="description" content="A paired benchmark: the same request, formatted as a benchmark item vs written like a real user. Do models refuse differently, and can they tell?">
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@700;800&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="lab.css">
 <style>
-:root{--fg:var(--ink);--card:var(--surface);--code:var(--surface-2);--acc:var(--link);--a2:var(--c1);--ok:var(--good);--warn:var(--accent);--eval:var(--c2);--nat:var(--c3);}
+:root{--accent:var(--dye);--accent-soft:var(--dye-soft);--fg:var(--ink);--card:var(--surface);--code:var(--surface-2);--acc:var(--link);--a2:var(--c1);--ok:var(--good);--warn:var(--accent);--eval:var(--c2);--nat:var(--c3);--dye:#1F7A57;--dye-dark:#6FD3A6;}
 .wrap>header{padding:8px 0 8px}
 header nav{display:none}
 section h2{margin-top:72px}
@@ -25,15 +25,45 @@ footer{max-width:none;padding-left:0;padding-right:0;margin-top:72px}
 </style>
 </head>
 <body>
-<header class="labbar"><div class="labbar-in"><a class="home" href="https://claude.ai/artifact/HFzmFTYLBw6n7KTCFKAdSQ"><i></i>Rishikesh · AI safety</a><nav aria-label="Sections"><a href="#results">Results</a><a href="#probe">Probe</a><a href="#viewer">Examples</a><a href="#method">Method</a><a href="#limits">Limitations</a><a class="gh" href="https://github.com/rishikeshn-eng/eval-awareness-gap">GitHub ↗</a></nav></div></header>
+<header class="labbar"><div class="labbar-in"><a class="home" href="https://claude.ai/artifact/HFzmFTYLBw6n7KTCFKAdSQ"><i>律</i>Rishikesh Nair</a><nav aria-label="Sections"><a class="ex" href="#explore">Explore</a><a href="#results">Results</a><a href="#probe">Probe</a><a href="#viewer">Examples</a><a href="#method">Method</a><a href="#limits">Limitations</a><a class="gh" href="https://github.com/rishikeshn-eng/eval-awareness-gap">GitHub ↗</a></nav></div></header>
 <div class="wrap">
 <header>
-  <div class="eyebrow">Evaluation validity</div>
+  <div class="seal" aria-hidden="true">試<small>tamesu · to test</small></div>
+<div class="eyebrow">Evaluation validity</div>
 <h1>The Eval-Awareness Gap</h1>
   <p class="sub">The same request, written once like a benchmark item and once like a real user. Do language models refuse differently? Can they tell which is which, and does a linear "this is a test" direction inside the model change what it does?</p>
   <nav><a href="#results">Results</a><a href="#probe">Probe &amp; steering</a><a href="#viewer">Paired examples</a><a href="#method">Method</a><a href="#limits">Limitations</a><a href="https://github.com/rishikeshn-eng/eval-awareness-gap">GitHub</a></nav>
   <div class="stats" id="stats"></div>
 </header>
+
+<section class="lab-panel" id="explore" aria-labelledby="explore-h">
+  <div class="ph"><h2 id="explore-h">Flip the format, watch refusal move</h2><span class="eyebrow">Explore</span></div>
+  <p class="how">The same request in two framings. Choose how the benchmark version is formatted and see how often the model refuses it versus the natural user version. Lines show the gap; whiskers are 95% intervals.</p>
+  <div class="pctl"><span class="lbl">Model</span><div class="seg" id="em" role="group" aria-label="Model"></div></div>
+  <div class="pctl"><span class="lbl">Benchmark format</span><div class="seg" id="ef" role="group" aria-label="Format"></div></div>
+  <div class="pbody">
+    <div><svg id="edb" viewBox="0 0 460 165" role="img" style="width:100%;display:block"></svg>
+      <div class="legendline"><span><i style="background:var(--dye)"></i>user-styled</span><span><i style="background:var(--c2)"></i>benchmark-styled</span><span><i style="background:var(--muted)"></i>original prompt</span></div></div>
+    <div><p class="readout" id="eread" aria-live="polite"></p><p class="muted" id="enote"></p></div>
+  </div>
+</section>
+<script>
+(()=>{let S,m,f="all";const $=i=>document.getElementById(i),F={all:"All formats",harness:"Test harness",mcq:"Multiple choice",scenario:"Scenario",numbered:"Numbered item"};
+const seg=(el,items,cur,on)=>{el.innerHTML=items.map(([k,l])=>`<button type="button" data-k="${k}" aria-pressed="${k===cur}">${l}</button>`).join("");el.onclick=e=>{const b=e.target.closest("button");if(!b)return;el.querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",x===b));on(b.dataset.k)}};
+const pct=x=>(100*x).toFixed(1)+"%";
+function draw(){const M=S.models[m],g=f==="all"?M.overall:(M.by_format||{})[f];if(!g){$("eread").textContent="This model was not run on that format.";$("edb").innerHTML="";return}
+  const R=g.refuse,x=v=>40+v*400,rows=[["original",R.original,"var(--muted)"],["user",R.natural,"var(--dye)"],["benchmark",R.eval,"var(--c2)"]].filter(r=>r[1]);
+  let s=[0,.25,.5,.75,1].map(t=>`<line x1="${x(t)}" x2="${x(t)}" y1="20" y2="132" stroke="var(--line)"/><text x="${x(t)}" y="155" text-anchor="middle" font-size="11" fill="var(--muted)">${t*100}%</text>`).join("");
+  const y=85;s+=`<line x1="${x(R.natural[0])}" x2="${x(R.eval[0])}" y1="${y}" y2="${y}" stroke="var(--ink)" stroke-opacity=".35" stroke-width="6" stroke-linecap="round"/>`;
+  rows.forEach(([n,v,c],i)=>{const yy=n==="original"?40:y;s+=`<line x1="${x(v[1])}" x2="${x(v[2])}" y1="${yy}" y2="${yy}" stroke="${c}" stroke-width="2"/><circle cx="${x(v[0])}" cy="${yy}" r="9" fill="${c}"/><text x="${x(v[0])}" y="${yy+(n==="benchmark"?32:n==="user"?-18:-16)}" text-anchor="middle" font-size="12" font-weight="600" fill="var(--ink)">${n} ${pct(v[0])}</text>`});
+  $("edb").innerHTML=s;$("edb").setAttribute("aria-label",`Refusal: user-styled ${pct(R.natural[0])}, benchmark-styled ${pct(R.eval[0])}${R.original?", original "+pct(R.original[0]):""}.`);
+  const d=R.delta,dir=d[0]<0?"less":"more";
+  $("eread").innerHTML=`Formatted as a ${f==="all"?"benchmark":F[f].toLowerCase()}, the request is refused <em>${Math.abs(100*d[0]).toFixed(1)} points ${dir}</em> often.`;
+  $("enote").textContent=`${m} · ${g.n_pairs} matched pairs · 95% paired-bootstrap interval [${(100*d[1]).toFixed(1)}, ${(100*d[2]).toFixed(1)}] pts${g.discordant?` · refused only as benchmark: ${g.discordant.refuse_only_eval}, only as user: ${g.discordant.refuse_only_natural}`:""}.`}
+fetch("data/summary.json").then(r=>r.json()).then(d=>{S=d;const ms=Object.keys(d.models);m=ms.includes("qwen2.5-1.5b")?"qwen2.5-1.5b":ms[0];
+  seg($("em"),ms.map(k=>[k,k.replace("-flash-lite"," FL")]),m,k=>{m=k;draw()});
+  seg($("ef"),Object.entries(F),f,k=>{f=k;draw()});draw()})})();
+</script>
 
 <section id="why">
   <h2 id="why-this-matters">Why this matters</h2>
